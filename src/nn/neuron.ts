@@ -1,27 +1,20 @@
-import { Module } from './module';
 import { Value } from '../core/engine';
 
-export class Neuron extends Module {
-  private weights: Value[];
-  private bias: Value;
-  private nonlin: boolean;
-
-  constructor(inputSize: number, nonlin = true) {
-    super();
-    this.weights = Array.from({ length: inputSize }, () => new Value(Math.random() * 2 - 1));
-    this.bias = new Value(0);
-    this.nonlin = nonlin;
+export class Neuron {
+  public b: Value; 
+  public w: Value[]; 
+  
+  constructor(inputSize: number, nonlin: boolean) {
+    this.b = new Value(Math.random() * 2 - 1); 
+    this.w = Array.from({ length: inputSize }, () => new Value(Math.random())); 
   }
 
   forward(x: Value[]): Value[] {
-    const weightedSum = this.weights
-      .map((w, i) => w.mul(x[i]))
-      .reduce((acc, curr) => acc.add(curr), this.bias);
-
-    return [this.nonlin ? weightedSum.relu() : weightedSum];
+    const weightedSum = this.w.reduce((sum, w, i) => sum + w.data * x[i].data, this.b.data);
+    return [new Value(weightedSum)]; 
   }
 
   parameters(): Value[] {
-    return [...this.weights, this.bias];
+    return [this.b, ...this.w];
   }
 }

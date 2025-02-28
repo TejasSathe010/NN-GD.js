@@ -10,6 +10,10 @@ export class Layer extends Module {
     this.neurons = Array.from({ length: outputSize }, () => new Neuron(inputSize, nonlin));
   }
 
+  public getNeurons(): Neuron[] {
+    return this.neurons;
+  }
+
   forward(x: Value[]): Value[] {
     return this.neurons.flatMap(neuron => neuron.forward(x));
   }
