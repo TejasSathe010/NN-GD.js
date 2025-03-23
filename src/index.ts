@@ -1,5 +1,17 @@
-export { Value } from './core/engine';
-export { MLP } from './nn/mlp';
-export { Layer } from './nn/layer';
-export { Neuron } from './nn/neuron';
-export { Module } from './nn/module';
+import { Value } from './core/engine';
+import { MLP } from './nn/mlp';
+import { Layer } from './nn/layer';
+import { Neuron } from './nn/neuron';
+import { Trainer } from './nn/trainer';
+import { DataLoader } from './data/dataloader';
+import { Visualizer } from './visualization/visualizer';
+
+export {
+  Value,
+  Neuron,
+  Layer,
+  MLP,
+  Trainer,
+  DataLoader,
+  Visualizer
+};

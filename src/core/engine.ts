@@ -1,85 +1,137 @@
+/**
+ * The core engine of the autograd system, implementing the Value class
+ * for automatic differentiation.
+ */
+
 export class Value {
-    data: number;
-    grad: number;
-    children: Value[];
-    op: string;
-    private _backward: () => void;
-  
-    constructor(data: number, children: Value[] = [], op = '') {
-      this.data = data;
-      this.grad = 0;
-      this.children = children;
-      this.op = op;
-      this._backward = () => {};
-    }
-  
-    add(other: Value | number): Value {
-      const otherValue = ensureValue(other);
-      const result = new Value(this.data + otherValue.data, [this, otherValue], '+');
-  
-      result._backward = () => {
-        this.grad += result.grad;
-        otherValue.grad += result.grad;
-      };
-  
-      return result;
-    }
-  
-    mul(other: Value | number): Value {
-      const otherValue = ensureValue(other);
-      const result = new Value(this.data * otherValue.data, [this, otherValue], '*');
-  
-      result._backward = () => {
-        this.grad += otherValue.data * result.grad;
-        otherValue.grad += this.data * result.grad;
-      };
-  
-      return result;
-    }
-  
-    pow(exp: number): Value {
-      const result = new Value(Math.pow(this.data, exp), [this], `**${exp}`);
-  
-      result._backward = () => {
-        this.grad += exp * Math.pow(this.data, exp - 1) * result.grad;
-      };
-  
-      return result;
-    }
-  
-    relu(): Value {
-      const result = new Value(this.data < 0 ? 0 : this.data, [this], 'ReLU');
-  
-      result._backward = () => {
-        this.grad += result.data > 0 ? 1 * result.grad : 0;
-      };
-  
-      return result;
-    }
-  
-    backward(): void {
-      const topo: Value[] = [];
-      const visited = new Set<Value>();
-  
-      const buildTopo = (v: Value) => {
-        if (!visited.has(v)) {
-          visited.add(v);
-          for (const child of v.children) buildTopo(child);
-          topo.push(v);
+  public data: number;
+  public grad: number;
+  private _prev: Set<Value>;
+  private _op: string;
+  private _backward: () => void;
+
+  constructor(data: number, _children: Value[] = [], _op: string = '') {
+    this.data = data;
+    this.grad = 0;
+    this._prev = new Set(_children);
+    this._op = _op;
+    this._backward = () => {}; // Default no-op backward function
+  }
+
+  // Addition operation
+  add(other: Value): Value {
+    other = other instanceof Value ? other : new Value(other);
+    const out = new Value(this.data + other.data, [this, other], '+');
+    
+    out._backward = () => {
+      this.grad += out.grad;
+      other.grad += out.grad;
+    };
+    
+    return out;
+  }
+
+  // Multiplication operation
+  mul(other: Value): Value {
+    other = other instanceof Value ? other : new Value(other);
+    const out = new Value(this.data * other.data, [this, other], '*');
+    
+    out._backward = () => {
+      this.grad += other.data * out.grad;
+      other.grad += this.data * out.grad;
+    };
+    
+    return out;
+  }
+
+  // Subtraction (useful for loss functions)
+  sub(other: Value): Value {
+    other = other instanceof Value ? other : new Value(other);
+    return this.add(other.mul(new Value(-1)));
+  }
+
+  // Division
+  div(other: Value): Value {
+    other = other instanceof Value ? other : new Value(other);
+    return this.mul(other.pow(-1));
+  }
+
+  // Power operation
+  pow(exponent: number): Value {
+    const out = new Value(Math.pow(this.data, exponent), [this], `^${exponent}`);
+    
+    out._backward = () => {
+      this.grad += (exponent * Math.pow(this.data, exponent - 1)) * out.grad;
+    };
+    
+    return out;
+  }
+
+  // ReLU activation function
+  relu(): Value {
+    const out = new Value(this.data < 0 ? 0 : this.data, [this], 'ReLU');
+    
+    out._backward = () => {
+      this.grad += (out.data > 0 ? 1 : 0) * out.grad;
+    };
+    
+    return out;
+  }
+
+  // Sigmoid activation function (useful for binary classification)
+  sigmoid(): Value {
+    const sig = 1 / (1 + Math.exp(-this.data));
+    const out = new Value(sig, [this], 'sigmoid');
+    
+    out._backward = () => {
+      this.grad += (out.data * (1 - out.data)) * out.grad;
+    };
+    
+    return out;
+  }
+
+  // Tanh activation function
+  tanh(): Value {
+    const x = this.data;
+    const t = (Math.exp(2*x) - 1) / (Math.exp(2*x) + 1);
+    const out = new Value(t, [this], 'tanh');
+    
+    out._backward = () => {
+      this.grad += (1 - t*t) * out.grad;
+    };
+    
+    return out;
+  }
+
+  // Backward pass to compute gradients
+  backward(): void {
+    // Topological sort
+    const topo: Value[] = [];
+    const visited = new Set<Value>();
+    
+    function buildTopo(v: Value) {
+      if (!visited.has(v)) {
+        visited.add(v);
+        for (const child of v._prev) {
+          buildTopo(child);
         }
-      };
-  
-      buildTopo(this);
-      this.grad = 1;
-      topo.reverse().forEach(v => v._backward());
+        topo.push(v);
+      }
     }
-  
-    toString(): string {
-      return `Value(data=${this.data}, grad=${this.grad}, op=${this.op})`;
+    
+    buildTopo(this);
+    
+    // Set gradient of output to 1 if not already set
+    this.grad = 1;
+    
+    // Backward pass in reverse topological order
+    for (let i = topo.length - 1; i >= 0; i--) {
+      topo[i]._backward();
     }
   }
-  
-  export function ensureValue(x: Value | number): Value {
-    return x instanceof Value ? x : new Value(x);
+
+  // Utility to convert to a string representation
+  toString(): string {
+    return `Value(data=${this.data}, grad=${this.grad})`;
   }
-  
+}
